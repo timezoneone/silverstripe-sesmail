@@ -3,11 +3,14 @@
 namespace Symbiote\SilverStripeSESMailer\Mail;
 
 use Aws\Ses\SesClient;
-use SilverStripe\Control\Email\Mailer;
 use SilverStripe\Control\Email\Email;
 use SilverStripe\Core\Injector\Injector;
 use Exception;
 use Psr\Log\LoggerInterface;
+use Symfony\Component\Mailer\Envelope;
+use Symfony\Component\Mailer\Mailer;
+use Symfony\Component\Mailer\MailerInterface;
+use Symfony\Component\Mime\RawMessage;
 
 
 /**
@@ -18,7 +21,7 @@ use Psr\Log\LoggerInterface;
  *
  * Does not support inline images.
  */
-class SESMailer implements Mailer
+class SESMailer implements MailerInterface
 {
 
 	/**
@@ -69,8 +72,9 @@ class SESMailer implements Mailer
 	/**
 	 * @param SilverStripe\Control\Email
 	 */
-	public function send($email)
-	{
+	public function send(RawMessage $email, ?Envelope $envelope = null): void
+    {
+        $this->sendEmail($email);
 		$destinations = $email->getTo();
 
 		if ($overideTo = Email::getSendAllEmailsTo()) {
@@ -106,7 +110,7 @@ class SESMailer implements Mailer
 
 			singleton(QueuedJobService::class)->queueJob($job);
 
-			return true;
+			return;
 		}
 
 		try {
@@ -117,16 +121,14 @@ class SESMailer implements Mailer
 			Injector::inst()->get(LoggerInterface::class)->warning($ex->getMessage());
 
 			$this->lastResponse = false;
-			return false;
+			return;
 		}
 
         /* @var $response Aws\Result */
         if (isset($response['MessageId']) && strlen($response['MessageId']) &&
 			(isset($response['@metadata']['statusCode']) && $response['@metadata']['statusCode'] == 200)) {
-            return true;
+            return;
         }
-
-		return false;
 	}
 
 	/**
